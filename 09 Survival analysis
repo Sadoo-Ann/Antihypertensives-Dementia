@@ -1,0 +1,49 @@
+* Survival Analysis
+
+use "$path/data/working data files/patient cohort.dta", clear  
+	  
+* Identify dataset as survival time data and generate censoring variable.  failure=1 if event occured, 0 if censored.
+gen e_death = (deathdate !=.)		
+stset follow_up, failure(e_death==1) scale(365.25)
+
+
+* Summary statistics
+sum _*  // summary of variables created by stset
+stdescribe // gives a brief description of the survival data
+stsum // gives a summary description of the survival time of the data
+stsum, by(cov_prod_ht_ace)  // summary description of ACE inhibitors  
+stci, by(cov_prod_ht_ace)  // median survival time by groups
+
+* Graph of the Kaplan-Meier plot    
+sts graph, by(cov_prod_ht_ace) risktable name(km_ace) // comparing the survivor function for patients taking and not taking ACE inhibitors
+
+* Use the Cox proportional hazard model to test for differences. Model building - include all predictors from univariate analyses, categorical and continuous.
+* Verify each model satisfies proportionality.
+
+* BASIC MODEL
+*Drugs for hypertension: angiotensin-conversing enzyme inhibitors
+stcox cov_prod_ht_ace cov_age cov_gender
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+estat phtest, detail  // gives test of proportional hazards assumption
+estat phtest, plot(cov_prod_ht_ace)
+graph save "phtst_basic.gph", replace
+
+
+*ADJUSTED MODEL
+*Drugs for hypertension: angiotensin-conversing enzyme inhibitors
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c
+
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+estat phtest, detail  // test of proportional hazards assumption
+estat phtest, plot(cov_prod_ht_ace)
+graph save "phtst_adj.gph", replace
+
+
+* Compare basic and adjusted model using Likelihood ratio test
+stcox cov_prod_ht_ace cov_age cov_gender if e(sample)==1
+estimates store m1
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c
+estimates store m2
+lrtest m1 m2
+
