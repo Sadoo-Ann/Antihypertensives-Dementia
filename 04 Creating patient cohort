@@ -1,0 +1,168 @@
+* Creating patient cohort
+
+use "$path/data/working data files/patient cohort.dta", clear
+
+* Add 1800 to year of birth
+gen yob_2 = yob+1800
+tab yob_2
+
+* Create practice ID from patient ID 
+gen pracid = mod(patid, 1000)
+
+* Create date of birth from year of birth
+generate birthday = dofy(yob_2)
+format birthday %td
+
+* Merge patient and practice datasets
+merge m:1 pracid using practice_001
+
+* Verify on data dictionary, then drop variables which will not be used in the analysis
+drop mob marital famnum chsreg capsup ses chsdate internal vmid
+tab accept 
+drop accept _merge age yob regstat reggap toreason prescr
+
+* Create follow-up period - registration to Study end 
+gen srtdate = uts
+replace srtdate = crd if crd > uts & crd !=. & uts !=.
+format srtdate %td
+
+egen enddate = rowmin(tod lcd deathdate)
+format enddate %td
+
+sort enddate
+sort srtdate
+
+* Check for duplicate observations
+duplicates report _all
+
+* Merging patient lists to cohort; merge 1:1 patid using patlists
+* Rename all vars in patient lists
+fs  "$patlists/patlist_*.dta"
+
+foreach f in `r(files)' {
+	display "`f'"
+
+    cap: drop _merge
+	merge 1:1 patid using "$patlists/`f'"
+    
+	local varname=subinstr("`f'",".dta","",1)
+	di "varname step 1 `varname'"
+	local varname=substr("`varname'",9,25)
+	display "varname step 2 `varname'"
+
+	rename index_count icount_`varname'
+	rename index_date idate_`varname'
+	
+	label var icount_`varname' "Count `f'"
+	label var idate_`varname' "Index date `f'"
+
+    }	
+
+
+* Restrict to Dementia cases
+egen dementia_case=rowmiss(idate_med_dem_* idate_prod_dem_*)
+tab dementia_case
+drop if dementia_case==9
+
+* Define index date
+egen index_date=rowmin(idate_med_dem_* idate_prod_dem_*)
+format index_date %td
+
+* Get counts for attrition flowchart
+* Patients with a dementia diagnosis after their index date
+count if dementia_case<index_date & index_date !=.
+
+* Patients with a dementia diagnosis before their index date
+count if dementia_case>index_date & index_date !=.
+
+gen statadate = date("01 01 1987", "DMY")
+display statadate
+
+* Patients with an index date after the data extract start date
+count if 9862<index_date
+
+* Patients with an index date before the data extract start date
+count if 9862>index_date
+
+gen statadate1 = date("29 02 2016", "DMY")
+display statadate1
+
+* Patients with an index date after data extract end date
+count if 20513<index_date
+
+* Patients with an index date before the data extract end date
+count if 20513>index_date
+
+* Create participant age at first diagnosis
+gen cov_age=(index_date-birthday)/365.25
+count if cov_age<40
+browse cov_age if cov_age<40
+drop if cov_age<40
+
+* Identify patients who have at least 12 months of consecutive data
+gen consec_12_mths = (index_date - srtdate)/365.25
+sort consec_12_mths
+gen exclude_reg=(consec_12_mths<1)
+tab exclude_reg
+drop if consec_12_mths<1
+
+* Define follow-up to death
+gen follow_up=deathdate-index_date
+replace follow_up=enddate-index_date if follow_up==.
+
+* Drop if follow-up is negative
+count if follow_up<0
+browse follow_up if follow_up<0
+drop if follow_up<0
+
+* Establish covariates before index date
+ds idate_* 
+foreach i in `r(varlist)'{
+	local name=subinstr("`i'","idate","cov",1)
+    gen `name'=(index_date>`i')
+}
+
+* Recode gender 
+tab gender
+rename gender cov_gender
+recode cov_gender (1=0) (2=1)
+tab cov_gender
+
+* Execute 05-Merge clinical and additional files.do
+* Execute 06-Covariate files for alcohol, BMI, Charlson index and consultation rate.do
+* Execute 07-Merge supplementary datasets.do
+
+* Rename additional covariates
+rename bmi cov_bmi
+rename alcohol cov_alcohol
+rename cons_rate cov_cons_rate
+rename charlson cov_charlson
+rename imd2010c cov_imd2010c
+
+* Recode alcohol variable
+recode cov_alcohol (1=1) (2=2) (3=0)
+label define status 0 "never" 1 "current" 2 "former", replace
+tab cov_alcohol, miss
+
+* Restrict to individuals prescribed anti-hypertensives
+egen pres_ht = rowmax(cov_prod_ht*)
+drop if pres_ht==0
+
+* Drop patients who were prescribed an antihypertensive before they were all available for prescription on 01-01-1996
+gen index_year = year(index_date)
+drop if year(index_date)<1996
+
+* Modify smoking variables
+egen max_smoke_date=rowmax(idate_smoke_former idate_smoke_current idate_smoke_never)
+gen cov_smoking=.
+replace cov_smoking=1 if max_smoke_date==idate_smoke_current &max_smoke_date!=.
+replace cov_smoking=2 if max_smoke_date==idate_smoke_former&max_smoke_date!=.
+replace cov_smoking=0 if max_smoke_date==idate_smoke_never&max_smoke_date!=.
+replace cov_smoking=2 if (idate_smoke_former!=. |idate_smoke_current!=.)&cov_smoking!=1
+tab cov_smoking, miss
+
+label define smoking_status 0 "never" 1 "current" 2 "former"
+label values cov_smoking smoking_status
+
+browse index_date idate_smoke_former idate_smoke_never idate_smoke_current cov_smoking
+save "$path/data/working data files/patient cohort.dta", replace
