@@ -1,0 +1,53 @@
+* Propensity score matching ADJUSTED MODEL
+
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+
+* create the outcome variable
+gen e_death = (deathdate !=.)           
+
+
+*1. Generate the propensity score and conduct the propensity score matching and get an estimate of the treatment effect. NB. se more efficient since matching based on estimated ps.  Matched 1:1 with all nearest neighbour ties.
+teffects psmatch (e_death) (cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c, logit), atet caliper(0.03) gen(match)
+
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+
+*2. Validate assumption of common support
+teffects overlap, ptlevel(1) kernel(gaussian) n(38636)
+graph save "ace_common_supportA.gph", replace
+tebalance sum
+
+
+*3. Assess match graphically
+tebalance box
+graph save "ace_matchA.gph", replace
+
+*4. Perform analysis on the matched sample, first restrict to region of overlap
+logit e_death cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+predict double ps if e(sample)
+
+tabstat ps, by(cov_prod_ht_ace) stats (N min max)
+
+gen keep = 1 if ps >= .0556886 & ps <= .7297103
+
+tab cov_prod_ht_ace keep
+
+
+* Estimate the treatment effect
+teffects psmatch (e_death) (cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c, logit) if keep ==1, atet caliper(0.03)
+
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+* identify data as survival time dataset
+stset follow_up, failure(e_death==1) scale(365.25)
+
+* perform survival analysis on matched sample
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoke_current i.cov_smoking cov_bmi i.cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if keep ==1, nohr
+
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed 
+
+estat phtest, detail  // test of proportional hazards assumption
+estat phtest, plot(cov_prod_ht_ace)
+graph save "phtst_match.gph", replace
