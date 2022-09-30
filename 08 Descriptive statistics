@@ -1,0 +1,31 @@
+
+* Generate descriptive statistics
+
+tabstat index_date, stats(p25 p50 p75 min max) c(s) format(%td)
+
+tabstat follow_up cov_cons_rate cov_charlson cov_imd2010c cov_age cov_bmi, stats(count mean sd p25 p50 p75 min max) c(s) format(%9.1f)
+
+tabstat cov_med* cov_prod* cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoke_current cov_smoke_former cov_smoke_never, stats(count sum) c(s) format(%9.0f) varwidth(32)
+
+tabstat cov_prod_ht_aab cov_prod_ht_ace* cov_prod_ht_anb cov_prod_ht_arb* cov_prod_ht_bab* cov_prod_ht_caa cov_prod_ht_ccb* cov_prod_ht_ld* cov_prod_ht_psd* cov_prod_ht_ren cov_prod_ht_thi cov_prod_ht_vad, stats(count sum) c(s) format(%9.0f) varwidth(32) 
+
+tabstat idate_med_dem* idate_prod_dem*, stats(count) c(s) format(%9.0f)
+
+tab cov_gender
+tab cov_alcohol
+
+count if cov_bmi==.
+count if cov_imd2010c==.
+count if cov_alcohol==.
+count if cov_smoking==.
+count if cov_cerebrovascular_stroke==.
+count if cov_age==.
+count if cov_gender==.
+count if cov_coronary_artery==.
+count if cov_coronary_bypass==.
+count if cov_cons_rate==.
+count if cov_charlson==.
+
+tabstat cov_med* cov_prod*, by(cov_gender) stats(count sum) c(s) format(%9.0f) varwidth(32)
+
+tabstat cov_prod_ht_aab cov_prod_ht_ace* cov_prod_ht_anb cov_prod_ht_arb* cov_prod_ht_bab* cov_prod_ht_caa cov_prod_ht_ccb* cov_prod_ht_ld* cov_prod_ht_psd* cov_prod_ht_ren cov_prod_ht_thi cov_prod_ht_vad, by(cov_gender) stats(count sum) c(s) format(%9.0f) varwidth(32) 
