@@ -1,0 +1,58 @@
+* Extract the event and patient lists from the data
+
+* List all code lists
+local files : dir "$raw_codelists" files "*.txt"
+* Repeat the following for each code list in the directory
+
+foreach file in `files' {
+
+	* Open the file
+	import delim using "$raw_codelists/`file'", clear
+
+	* Create local variable with file name (file extension removed)
+	local noextension=subinstr("`file'",".txt","",.)
+
+	* Display time that event and patient list extraction started
+	noi display "`noextension' started at " c(current_time)
+
+	* Check for 'cprd_medcode' variable to confirm that it is a diagnosis list
+	capture confirm variable cprd_medcode
+
+	if !_rc {
+
+		* Format code list
+		keep cprd_medcode description
+		rename cprd_medcode medcode
+		rename description readterm
+		label var medcode "Medical Code"
+		label var readterm "Read Term"
+
+		* Save code list in Stata format
+		save "$codelists/`noextension'", replace
+
+		* Use function to extract event and patient lists
+		extract_codes med `noextension' 
+
+	}
+
+	* Check for 'cprd_prodcode' variable to confirm that it is a drug list
+	capture confirm variable cprd_prodcode
+
+	if !_rc {
+
+		* Format code list
+		keep cprd_prodcode description
+		rename cprd_prodcode prodcode
+		rename description prodname
+		label var prodcode "Product Code"
+		label var prodname "Product Name"
+
+		* Save code list in Stata format
+		save "$codelists/`noextension'", replace
+
+		* Use function to extract event and patient lists
+
+		extract_codes prod `noextension'
+		
+	}
+}
