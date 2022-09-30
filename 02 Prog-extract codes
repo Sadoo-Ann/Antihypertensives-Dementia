@@ -1,0 +1,161 @@
+* Define the function that extracts the event and patient lists from the data.  Remove existing functions called 'extract_codes'
+
+cap prog drop extract_codes
+
+* Define new function called 'extract_codes'
+
+prog def extract_codes
+	cap ssc install fs 
+	args codetype event
+
+	* Run function quietly to suppress output
+	quietly {
+
+		* Change directory to data
+		cd "$data"
+
+		* Perform following steps if codetype is 'med' (i.e. diagnosis)
+		if "`codetype'"=="med"{
+
+			* Create empty local variable named 'files'
+			local files ""
+
+			* For each type of file that contains med codes (i.e. clinical, referral, test, immunisation)
+			foreach j in clinical referral test immunisation {	
+
+				* List files of type j
+				fs "`j'*"		
+
+				* For each file of type j
+				foreach f in `r(files)' {
+
+					* Open the file
+					use "$data/`f'",clear
+
+					* Record the file name in the file
+					gen filename = subinstr("`f'",".dta","",.)
+
+					* Replace missing event dates with system dates
+					gen index_date = cond(missing(eventdate),sysdate,eventdate)
+
+					* Record whether the date is the original event date or the system date
+					gen datetype = cond(missing(eventdate),"sysdate","eventdate")
+
+					* Join the data with the code list for the event of interest
+					joinby medcode using "$codelists/`event'.dta"
+
+					* Convert variables textid, filename and readterm to strings
+					tostring textid filename readterm, replace
+
+					* Reduce file size
+					compress
+
+					* Save as a temporary eventlist
+					save "$eventlists/`f'_eventlist_`event'.dta", replace
+
+					* Add the name of the file to the local variable named 'files'
+					local files : list  f | files
+				}
+			}
+
+			* Once eventlists have been created for each raw data file, loop over 
+			* all of them to join them together and create the final eventlist
+
+			foreach i in `files'{
+				append using "$eventlists/`i'_eventlist_`event'.dta"
+				rm "$eventlists/`i'_eventlist_`event'.dta"
+			}
+
+		}
+
+		* Perform following steps if codetype is 'prod' (i.e. drug)
+		if "`codetype'"=="prod"{
+
+			* Create empty local variable named 'files'
+			local files ""
+
+			* For each type of file that contains prod codes (i.e. therapy)
+			foreach j in therapy {
+
+				* List files of type j
+				fs "*`j'*"		
+
+				* For each file of type j
+				foreach f in `r(files)' {
+	
+					* Open the file
+					use "$data/`f'",clear
+
+					* Record the file name in the file
+					gen filename = subinstr("`f'",".dta","",.)
+
+					* Replace missing event dates with system dates
+					gen index_date = cond(missing(eventdate),sysdate,eventdate)
+
+					* Record whether the date is the original event date or the system date
+					gen datetype = cond(missing(eventdate),"sysdate","eventdate")
+
+					* Join the data with the code list for the event of interest
+					joinby prodcode using "$codelists/`event'"
+
+					* Convert variables textid, filename, and prodname to strings
+					tostring textid filename prodname, replace
+
+					* Reduce file size
+					compress
+
+					* Format variables according to type
+					format %15.0g staffid consid patid
+					format %td *date
+
+					*  Save as a temporary eventlist
+					save "$eventlists/`f'_eventlist_`event'.dta", replace
+
+					* Add the name of the file to the local variable named 'files'
+					local files : list  f | files		
+
+				}
+			}
+
+			* Once eventlists have been created for each raw data file, loop over 
+			* all of them to join them together and create the final eventlist
+
+			foreach i in `files' {
+				append using "$eventlists/`i'_eventlist_`event'.dta"
+				rm "$eventlists/`i'_eventlist_`event'.dta"
+			}
+		}
+
+		* Remove duplicates 
+		duplicates drop
+
+		* Reduce file size
+		compress
+
+		* Format variables according to type
+		format %15.0g staffid consid patid
+		format %td *date
+
+	}
+
+	* Save final eventlist
+	save "$eventlists/eventlist_`event'.dta", replace
+
+	* Count number of codes for each patient
+	egen index_count = count(patid), by(patid)
+
+	* Find and format the first date the patient had a relevant code
+	egen min_date = min(index_date), by(patid)
+	format %td min_date
+
+	* Keep the patient ID, number of codes, and the first date the patient had a relevant code
+	keep patid index_count min_date
+
+	* Tidy patient list
+	rename min_date index_date
+	duplicates drop *, force
+
+	* Save final patient list
+	save "$patlists/patlist_`event'.dta", replace
+
+end 
