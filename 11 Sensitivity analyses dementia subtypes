@@ -1,0 +1,60 @@
+*DEMENTIA SUB-TYPES
+
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+
+* Collate dementia information. Define dementia sub-types.  ---------------------------------------------------------
+egen dem_cond_date = rowmin(idate_med_dem_adposs idate_med_dem_adprob idate_med_dem_ns idate_med_dem_oth idate_med_dem_vas idate_prod_dem_don idate_prod_dem_gal idate_prod_dem_mem idate_prod_dem_riv)
+
+egen dem_treat_date = rowmin(idate_prod_dem_don idate_prod_dem_gal idate_prod_dem_mem idate_prod_dem_riv)
+
+egen dem_ad_date = rowmin(idate_med_dem_adposs idate_med_dem_adprob)
+
+gen diagnosis_dem = .
+replace diagnosis_dem = 0 if missing(idate_med_dem_vas) & missing(dem_ad_date) & missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 1 if !missing(idate_med_dem_adprob) & missing(idate_med_dem_vas) & missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 2 if !missing(idate_med_dem_adposs) & missing(idate_med_dem_adprob) & missing(idate_med_dem_vas) & missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 3 if missing(dem_ad_date) & !missing(idate_med_dem_vas) & missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 4 if missing(dem_ad_date) & missing(idate_med_dem_vas) & !missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 4 if !missing(idate_med_dem_adprob) & (!missing(idate_med_dem_vas) | !missing(idate_med_dem_oth))
+
+replace diagnosis_dem = 4 if !missing(idate_med_dem_adposs) & missing(idate_med_dem_adprob) & (!missing(idate_med_dem_vas) | !missing(idate_med_dem_oth))
+
+replace diagnosis_dem = 4 if missing(dem_ad_date) & !missing(idate_med_dem_vas) & !missing(idate_med_dem_oth)
+
+replace diagnosis_dem = 4 if missing(idate_med_dem_vas) & missing(dem_ad_date) & missing(idate_med_dem_oth) & (!missing(idate_med_dem_ns) | !missing(dem_treat_date))
+
+#delimit ;
+label define diagnosis
+0 "No dementia"
+1 "Probable AD"
+2 "Possible AD"
+3 "Vascular dementia"
+4 "Other dementias";
+#delimit cr
+
+label values diagnosis_dem diagnosis
+rename dem_cond_date diagnosis_date
+tab diagnosis_dem, miss
+
+save "$path/data/working data files/patient cohort, attrition_subtype.dta", replace
+ 
+* Run survival analysis on adjusted model for each sub-type. 
+// No Dementia - if diagnosis_dem==0, no observations
+--------------------------------------------------------------------------
+forvalues i = 1(1)4 {
+
+use "$path/data/working data files/patient cohort, attrition_subtype.dta", clear
+keep if diagnosis_dem==`i'
+
+gen e_death = (deathdate !=.) 
+stset follow_up, failure(e_death==1) scale(365.25)
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+}
+
