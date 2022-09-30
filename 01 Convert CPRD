@@ -1,0 +1,74 @@
+* Convert CPRD data from text format to Stata format
+
+* List all files in main CPRD extract
+local files : dir "$raw_data" files "venexia_15_246R_ext_Extract_Clinical_001.txt"
+* For each file
+
+foreach file in `files' {
+
+	* Import the file
+	import delim "$raw_data/`file'", varn(1) clear
+
+	* For each date variable in the file
+	foreach date in chsdate frd crd tod deathdate lcd uts eventdate sysdate linkdate start end discharged dod perend perstart subdate apptdate dnadate reqdate {
+
+		* Confirm the variable is present
+		capture confirm variable `date'
+
+		if !_rc {
+
+			* Generate a new variable with the date in desired data format
+			gen `date'1 = date(`date',"DMY")
+			format %td `date'1
+
+			* Remove old date and rename new date
+			drop `date'
+			rename `date'1 `date'
+
+		}
+	}
+
+	* Make a name for the file that is shorter for ease of use later
+	local name = subinstr(subinstr(strlower("`file'"),".txt","",.),"venexia_15_246r_ext_extract_","",.)
+
+	* Compress and save
+	compress
+	save "$data/`name'", replace
+
+}
+
+
+* List all linked files received with the main CPRD extract
+local files : dir "$raw_data" files "link*.txt"
+* For each file
+
+foreach file in `files' {
+
+	* Import the file
+	import delim "$raw_data/`file'", varn(1) clear
+
+	* For each date variable in the file
+	foreach date in apptdate discharged dnadate dod linkdate perend perstart reqdate subdate {
+
+		* Confirm the variable is present
+		capture confirm variable `date'
+		if !_rc {
+
+			* Generate a new variable with the date in desired data format
+			gen `date'1 = date(`date',"DMY")
+			format %td `date'1
+
+			* Remove old date and rename new date
+			drop `date'
+			rename `date'1 `date'
+
+		}
+	}
+
+	* Make a name for the file that is shorter for ease of use later
+	local name = subinstr("`file'",".txt","",.)
+
+	* Compress and save
+	compress
+	save "$data/`name'", replace
+}
