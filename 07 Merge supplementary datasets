@@ -1,0 +1,47 @@
+*Add supplementary datasets:  BMI; Alcohol usage; Consultation rate; Charlson index
+
+*1. BMI
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+merge 1:1 patid using "$path/data/cprd/cov_bmi.dta"
+rename _merge _merge_bmi
+
+drop _merge_bmi
+save "$path/data/working data files/patient cohort, attrition.dta", replace
+
+*2. Alcohol usage
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+merge 1:1 patid using "$path/data/cprd/cov_alcohol.dta"
+rename _merge _merge_alcohol
+
+drop _merge_alcohol
+save "$path/data/working data files/patient cohort, attrition.dta", replace
+
+*3. Consultation rate
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+merge 1:1 patid using "$path/data/cprd/cov_cons_rate.dta"
+rename _merge _merge_cons_rate
+
+drop _merge_cons_rate
+save "$path/data/working data files/patient cohort, attrition.dta", replace
+
+*4. Charlson index
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+merge 1:1 patid using "$path/data/cprd/cov_charlson.dta"
+rename _merge _merge_charlson
+
+drop _merge_charlson
+drop charlson6
+save "$path/data/working data files/patient cohort, attrition.dta", replace
+	
+* 5. Add index of multiple deprivation
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+merge 1:1 patid pracid using "$path/data/cprd/link_ab_patient_imd2010.dta", keep(match master) keepusing(patid pracid imd2010_20)
+drop _merge
+rename imd2010_20 imd2010
+
+merge 1:1 patid pracid using "$path/data/cprd/link_c_patient_imd2010.dta", keep(match master) keepusing(patid pracid imd2010_20)
+drop _merge
+rename imd2010_20 imd2010c
+replace imd2010 = imd2010c if missing(imd2010)
+ 
+save "$path/data/working data files/patient cohort, attrition.dta", replace
