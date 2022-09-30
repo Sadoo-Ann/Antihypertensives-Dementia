@@ -1,0 +1,31 @@
+*AGE:
+
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+
+* look at the distribution of ages
+hist cov_age
+graph save "hist_age", replace
+
+* create quartiles of age
+xtile pc_cov_age=cov_age, n(4)
+tab pc_cov_age
+
+* show the age range for the groups
+table pc_cov_age, contents(min cov_age max cov_age)
+
+* perform survival analysis on adjusted model for each age group
+gen e_death = (deathdate !=.)		
+stset follow_up, failure(e_death==1) scale(365.25)
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if pc_cov_age==1
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if pc_cov_age==2
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if pc_cov_age==3
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if pc_cov_age==4
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
