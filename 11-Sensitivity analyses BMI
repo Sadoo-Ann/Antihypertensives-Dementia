@@ -1,0 +1,31 @@
+* BMI:  
+
+use "$path/data/working data files/patient cohort, attrition.dta", clear
+
+* look at the distribution of bmi values
+hist cov_bmi
+graph save "hist_bmi", replace
+
+*Categorise to normal/ overweight/ obese
+gen bmistd=cov_bmi
+
+recode bmistd 10/25=0 25/30=1 30/100=2
+
+tab	bmistd
+sum cov_bmi
+
+*Run survival analysis on adjusted model within levels of BMI.
+gen e_death = (deathdate !=.)		
+stset follow_up, failure(e_death==1) scale(365.25)
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if bmistd==0
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if bmistd==1
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
+
+stcox cov_prod_ht_ace cov_age cov_gender cov_cerebrovascular_stroke cov_coronary_artery cov_coronary_bypass cov_smoking cov_bmi cov_alcohol cov_cons_rate cov_charlson cov_imd2010c if bmistd==2
+tab cov_prod_ht_ace if e(sample) // to get the proportion exposed
+
